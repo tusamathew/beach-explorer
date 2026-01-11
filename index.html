@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Te Ika-a-Māui Beach Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container { height: 350px; }
+        }
+        /* Custom scrollbar for beach list */
+        .beach-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .beach-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .beach-scroll::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 4px;
+        }
+        .beach-scroll::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+    </style>
+    <!-- Chosen Palette: Sand & Sea (Warm Neutrals with Deep Ocean Blue) -->
+    <!-- Application Structure Plan: 
+         1. Header: Context and Title.
+         2. Configuration Bar: User inputs their Home Region and preferences. This drives the logic for 'Day Trip' feasibility.
+         3. Main Dashboard (Grid Layout):
+            - Left Column: Interactive Beach List (Cards). dynamically sorted/filtered.
+            - Right Column: 'Trip Preview' & Analytics.
+         4. Trip Preview: Shows specific details of selected beach + Dynamic Google Maps Link generator.
+         5. Analytics Section: Visualizing the data (Beach types, Regional distribution) using Chart.js.
+         Rationale: This structure allows users to explore options (List) while immediately seeing the logistics (Preview) without leaving the context. 
+    -->
+    <!-- Visualization & Content Choices:
+         - Goal: Inform -> Beach Details -> Text Cards -> Simple, scannable.
+         - Goal: Compare -> Beach Types -> Doughnut Chart -> Quick visual of available variety.
+         - Goal: Relationships -> Regional Density -> Bar Chart -> Shows where the most options are.
+         - Goal: Action -> Route Planning -> Dynamic Button -> Opens external Google Maps API.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="bg-stone-50 text-stone-800">
+
+    <!-- Header Section -->
+    <header class="bg-white border-b border-stone-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="text-4xl">🌊</div>
+                <div>
+                    <h1 class="text-2xl font-bold text-sky-900 tracking-tight">Te Ika-a-Māui Beach Explorer</h1>
+                    <p class="text-xs text-stone-500 uppercase tracking-wider font-semibold">North Island Day Trip Planner</p>
+                </div>
+            </div>
+            <div class="hidden md:block text-right">
+                <p class="text-sm text-stone-600">Plan your escape.</p>
+                <p class="text-xs text-stone-400">Discover. Drive. Dive.</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+        <!-- Intro Text -->
+        <section class="max-w-3xl mx-auto text-center">
+            <h2 class="text-xl font-semibold text-stone-700 mb-2">Find Your Perfect Shore</h2>
+            <p class="text-stone-600 leading-relaxed">
+                New Zealand's North Island offers a diverse coastline ranging from the black sands of the West Coast to the white silica of the East. 
+                Use this tool to find accessible beaches from your home base, analyze the best spots for your activity preference, and generate an instant route map for your day trip.
+            </p>
+        </section>
+
+        <!-- Configuration / Controls -->
+        <section class="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
+            <h3 class="text-sm font-bold text-stone-400 uppercase tracking-widest mb-4 border-b border-stone-100 pb-2">Trip Configuration</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Home Base Input -->
+                <div class="space-y-2">
+                    <label for="home-base" class="block text-sm font-medium text-stone-700">Where are you starting from?</label>
+                    <select id="home-base" class="w-full rounded-md border-stone-300 shadow-sm bg-stone-50 border p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors">
+                        <option value="Auckland">Auckland</option>
+                        <option value="Wellington">Wellington</option>
+                        <option value="Hamilton">Hamilton</option>
+                        <option value="Tauranga">Tauranga</option>
+                        <option value="Whangarei">Whangarei</option>
+                        <option value="Napier">Napier</option>
+                        <option value="New Plymouth">New Plymouth</option>
+                        <option value="Taupo">Taupo</option>
+                    </select>
+                </div>
+
+                <!-- Type Filter -->
+                <div class="space-y-2">
+                    <label for="beach-type" class="block text-sm font-medium text-stone-700">What are you looking for?</label>
+                    <select id="beach-type" class="w-full rounded-md border-stone-300 shadow-sm bg-stone-50 border p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors">
+                        <option value="All">All Types</option>
+                        <option value="Surf">Surf & Wild</option>
+                        <option value="Swimming">Safe Swimming</option>
+                        <option value="Scenic">Scenic & Walking</option>
+                        <option value="Family">Family Friendly</option>
+                    </select>
+                </div>
+
+                <!-- Region Filter -->
+                <div class="space-y-2">
+                    <label for="region-filter" class="block text-sm font-medium text-stone-700">Filter by Region</label>
+                    <select id="region-filter" class="w-full rounded-md border-stone-300 shadow-sm bg-stone-50 border p-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors">
+                        <option value="All">All Regions</option>
+                        <option value="Northland">Northland</option>
+                        <option value="Auckland">Auckland</option>
+                        <option value="Coromandel">Coromandel</option>
+                        <option value="Waikato">Waikato</option>
+                        <option value="Bay of Plenty">Bay of Plenty</option>
+                        <option value="Gisborne">Gisborne</option>
+                        <option value="Hawke's Bay">Hawke's Bay</option>
+                        <option value="Taranaki">Taranaki</option>
+                        <option value="Wellington">Wellington</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Dashboard -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-auto lg:h-[800px]">
+            
+            <!-- LEFT COL: Beach List -->
+            <div class="lg:col-span-5 flex flex-col bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-full">
+                <div class="p-4 bg-stone-50 border-b border-stone-200 flex justify-between items-center">
+                    <h3 class="font-bold text-stone-700">Beach Destinations</h3>
+                    <span id="result-count" class="text-xs bg-sky-100 text-sky-800 px-2 py-1 rounded-full font-medium">Loading...</span>
+                </div>
+                <div id="beach-list-container" class="beach-scroll overflow-y-auto p-4 space-y-3 flex-1">
+                    <!-- Beach Cards Injected Here via JS -->
+                </div>
+            </div>
+
+            <!-- RIGHT COL: Details & Analytics -->
+            <div class="lg:col-span-7 flex flex-col gap-6 h-full overflow-y-auto beach-scroll pr-2">
+                
+                <!-- Trip Preview Card (Sticky Logic handled via JS updates) -->
+                <div id="trip-preview" class="bg-gradient-to-br from-sky-900 to-sky-800 rounded-xl shadow-lg text-white p-6 relative overflow-hidden transition-all duration-300">
+                    <div class="absolute top-0 right-0 p-4 opacity-20 text-9xl">🏖️</div>
+                    <div class="relative z-10">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h2 id="preview-name" class="text-3xl font-bold tracking-tight">Select a Beach</h2>
+                                <p id="preview-region" class="text-sky-200 font-medium text-lg">to start planning</p>
+                            </div>
+                            <span id="preview-tag" class="hidden px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-sm font-semibold border border-white/30">Type</span>
+                        </div>
+
+                        <div id="preview-details" class="space-y-4 mb-6 opacity-50">
+                            <p class="text-sky-100">Click on a beach in the list to see route details and description.</p>
+                        </div>
+
+                        <div id="action-area" class="mt-6 pt-6 border-t border-sky-700/50 flex flex-wrap gap-4 items-center hidden">
+                            <a id="maps-link" href="#" target="_blank" class="inline-flex items-center justify-center px-6 py-3 bg-white text-sky-900 font-bold rounded-lg hover:bg-sky-50 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                                <span class="mr-2">🚗</span> Open Route in Google Maps
+                            </a>
+                            <div class="text-sm text-sky-200">
+                                <span>Origin: <strong id="origin-display">--</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Chart 1: Distribution -->
+                    <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-4 flex flex-col">
+                        <h4 class="text-sm font-bold text-stone-500 mb-4 text-center">North Island Beach Variety</h4>
+                        <div class="chart-container flex-grow">
+                            <canvas id="typeChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart 2: Regional breakdown -->
+                    <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-4 flex flex-col">
+                        <h4 class="text-sm font-bold text-stone-500 mb-4 text-center">Destinations by Region</h4>
+                        <div class="chart-container flex-grow">
+                            <canvas id="regionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Panel -->
+                <div class="bg-sky-50 rounded-xl border border-sky-100 p-6">
+                    <h4 class="text-lg font-bold text-sky-900 mb-2">About Day Trips in Te Ika-a-Māui</h4>
+                    <p class="text-stone-700 text-sm mb-3">
+                        The North Island is relatively narrow, meaning you are rarely more than 2 hours from the sea. However, road conditions vary.
+                        "Day Trips" are generally considered routes under 3.5 hours one-way.
+                    </p>
+                    <ul class="list-disc list-inside text-sm text-stone-600 space-y-1">
+                        <li><strong>West Coast:</strong> Known for black sand, wild surf, and sunsets (e.g., Piha, Raglan).</li>
+                        <li><strong>East Coast:</strong> Known for white sand, calmer bays, and sunrises (e.g., Coromandel, Mt Maunganui).</li>
+                        <li><strong>Northland:</strong> Subtropical, white silica sands, warmer waters.</li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // --- DATA STORE ---
+        // A curated list of 35 notable North Island beaches
+        const beaches = [
+            // Northland
+            { id: 1, name: "Ninety Mile Beach", region: "Northland", type: "Surf", features: "Endless sand, driving on beach, fishing", lat: -34.8, lng: 173.1 },
+            { id: 2, name: "Maitai Bay", region: "Northland", type: "Swimming", features: "Crystal clear water, camping, snorkeling", lat: -34.8, lng: 173.4 },
+            { id: 3, name: "Coopers Beach", region: "Northland", type: "Family", features: "Pohutukawa trees, safe swimming, amenities", lat: -34.9, lng: 173.5 },
+            { id: 4, name: "Matapouri Bay", region: "Northland", type: "Scenic", features: "Mermaid pools, white sand, horseshoe shape", lat: -35.5, lng: 174.5 },
+            // Auckland
+            { id: 5, name: "Piha Beach", region: "Auckland", type: "Surf", features: "Lion Rock, black sand, strong surf", lat: -36.9, lng: 174.4 },
+            { id: 6, name: "Muriwai Beach", region: "Auckland", type: "Surf", features: "Gannet colony, driving on beach, rugged", lat: -36.8, lng: 174.4 },
+            { id: 7, name: "Mission Bay", region: "Auckland", type: "Family", features: "Urban, cafes, park, fountain", lat: -36.8, lng: 174.8 },
+            { id: 8, name: "Anchor Bay (Tawharanui)", region: "Auckland", type: "Scenic", features: "Regional park, kiwi sanctuary, surfing", lat: -36.3, lng: 174.8 },
+            { id: 9, name: "Takapuna Beach", region: "Auckland", type: "Family", features: "Urban, calm water, boat ramp, cafes", lat: -36.7, lng: 174.7 },
+            { id: 10, name: "Karekare Beach", region: "Auckland", type: "Scenic", features: "Wilderness, waterfalls nearby, movie fame", lat: -36.9, lng: 174.4 },
+            // Coromandel
+            { id: 11, name: "Cathedral Cove", region: "Coromandel", type: "Scenic", features: "Famous archway, marine reserve, walking access", lat: -36.8, lng: 175.8 },
+            { id: 12, name: "Hot Water Beach", region: "Coromandel", type: "Family", features: "Thermal springs, dig your own spa", lat: -36.8, lng: 175.8 },
+            { id: 13, name: "New Chums Beach", region: "Coromandel", type: "Scenic", features: "Hidden, undeveloped, golden sand", lat: -36.7, lng: 175.7 },
+            { id: 14, name: "Whangamata", region: "Coromandel", type: "Surf", features: "Surfing bar, estuary, holiday vibe", lat: -37.2, lng: 175.8 },
+            // Waikato
+            { id: 15, name: "Ngarunui Beach (Raglan)", region: "Waikato", type: "Surf", features: "World-class surf, black sand, sunset", lat: -37.8, lng: 174.8 },
+            { id: 16, name: "Kawhia Hot Water Beach", region: "Waikato", type: "Scenic", features: "Hot springs, quiet, west coast", lat: -38.0, lng: 174.8 },
+            // Bay of Plenty
+            { id: 17, name: "Mt Maunganui Main Beach", region: "Bay of Plenty", type: "Surf", features: "The Mount, cafes, surfing, white sand", lat: -37.6, lng: 176.1 },
+            { id: 18, name: "Ohope Beach", region: "Bay of Plenty", type: "Family", features: "NZ's best loved beach, safe surf, warm", lat: -37.9, lng: 177.0 },
+            { id: 19, name: "Papamoa Beach", region: "Bay of Plenty", type: "Family", features: "Long coastline, dunes, fishing", lat: -37.7, lng: 176.2 },
+            // Gisborne
+            { id: 20, name: "Wainui Beach", region: "Gisborne", type: "Surf", features: "Sunrise, consistent surf breaks", lat: -38.6, lng: 178.0 },
+            // Hawke's Bay
+            { id: 21, name: "Ocean Beach", region: "Hawke's Bay", type: "Surf", features: "Golden sand, surf, remote feel", lat: -39.7, lng: 177.0 },
+            { id: 22, name: "Waimarama Beach", region: "Hawke's Bay", type: "Family", features: "Popular holiday spot, sandy, surf patrol", lat: -39.8, lng: 176.9 },
+            // Taranaki
+            { id: 23, name: "Fitzroy Beach", region: "Taranaki", type: "Surf", features: "City beach, walkway, surf breaks", lat: -39.0, lng: 174.1 },
+            { id: 24, name: "Opunake Beach", region: "Taranaki", type: "Family", features: "Cove, safe swimming, camping", lat: -39.4, lng: 173.8 },
+            // Wellington
+            { id: 25, name: "Oriental Bay", region: "Wellington", type: "Family", features: "City beach, golden sand (imported), calm", lat: -41.2, lng: 174.7 },
+            { id: 26, name: "Lyall Bay", region: "Wellington", type: "Surf", features: "Surf beach, near airport, cafes", lat: -41.3, lng: 174.7 },
+            { id: 27, name: "Scorching Bay", region: "Wellington", type: "Swimming", features: "Sheltered, cafe, grass area", lat: -41.3, lng: 174.8 },
+            { id: 28, name: "Castlepoint", region: "Wellington", type: "Scenic", features: "Lighthouse, lagoon, limestone reef", lat: -40.9, lng: 176.2 },
+        ];
+
+        // --- REGIONAL PROXIMITY MAPPING (Simplified) ---
+        // Helps estimate "Day Trip" vs "Road Trip" labels
+        const regionAdjacency = {
+            "Auckland": ["Northland", "Waikato", "Coromandel"],
+            "Northland": ["Auckland"],
+            "Waikato": ["Auckland", "Coromandel", "Bay of Plenty", "Taranaki"],
+            "Coromandel": ["Auckland", "Waikato", "Bay of Plenty"],
+            "Bay of Plenty": ["Waikato", "Coromandel", "Gisborne", "Hawke's Bay"],
+            "Gisborne": ["Bay of Plenty", "Hawke's Bay"],
+            "Hawke's Bay": ["Gisborne", "Bay of Plenty", "Wellington", "Taupo"],
+            "Taranaki": ["Waikato", "Wellington"],
+            "Wellington": ["Taranaki", "Hawke's Bay"],
+            "Taupo": ["Waikato", "Hawke's Bay"],
+            "Whangarei": ["Northland", "Auckland"],
+            "Hamilton": ["Waikato", "Auckland", "Bay of Plenty", "Coromandel"],
+            "Tauranga": ["Bay of Plenty", "Waikato", "Coromandel"],
+            "Napier": ["Hawke's Bay", "Taupo", "Gisborne"],
+            "New Plymouth": ["Taranaki", "Waikato"]
+        };
+
+        const cityToRegionMap = {
+            "Auckland": "Auckland",
+            "Wellington": "Wellington",
+            "Hamilton": "Waikato",
+            "Tauranga": "Bay of Plenty",
+            "Whangarei": "Northland",
+            "Napier": "Hawke's Bay",
+            "New Plymouth": "Taranaki",
+            "Taupo": "Taupo"
+        };
+
+        // --- STATE MANAGEMENT ---
+        let state = {
+            homeBase: "Auckland",
+            selectedType: "All",
+            selectedRegionFilter: "All",
+            selectedBeachId: null
+        };
+
+        // --- DOM ELEMENTS ---
+        const homeBaseSelect = document.getElementById('home-base');
+        const typeSelect = document.getElementById('beach-type');
+        const regionSelect = document.getElementById('region-filter');
+        const beachListContainer = document.getElementById('beach-list-container');
+        const resultCountLabel = document.getElementById('result-count');
+        
+        // Preview Elements
+        const previewName = document.getElementById('preview-name');
+        const previewRegion = document.getElementById('preview-region');
+        const previewTag = document.getElementById('preview-tag');
+        const previewDetails = document.getElementById('preview-details');
+        const actionArea = document.getElementById('action-area');
+        const mapsLink = document.getElementById('maps-link');
+        const originDisplay = document.getElementById('origin-display');
+        const tripPreviewCard = document.getElementById('trip-preview');
+
+        // --- INITIALIZATION ---
+        function init() {
+            renderBeachList();
+            renderCharts();
+            
+            // Event Listeners
+            homeBaseSelect.addEventListener('change', (e) => {
+                state.homeBase = e.target.value;
+                renderBeachList(); // Re-render to update badges
+                updatePreviewIfSelected();
+            });
+
+            typeSelect.addEventListener('change', (e) => {
+                state.selectedType = e.target.value;
+                renderBeachList();
+            });
+
+            regionSelect.addEventListener('change', (e) => {
+                state.selectedRegionFilter = e.target.value;
+                renderBeachList();
+            });
+        }
+
+        // --- LOGIC: Filter and Sort ---
+        function getFilteredBeaches() {
+            return beaches.filter(beach => {
+                const matchesType = state.selectedType === "All" || beach.type === state.selectedType;
+                const matchesRegion = state.selectedRegionFilter === "All" || beach.region === state.selectedRegionFilter;
+                return matchesType && matchesRegion;
+            });
+        }
+
+        function getTripDifficulty(beachRegion, homeCity) {
+            const homeRegion = cityToRegionMap[homeCity] || "Auckland";
+            
+            if (beachRegion === homeRegion) return { label: "Short Drive", color: "bg-green-100 text-green-800" };
+            
+            const adjacent = regionAdjacency[homeCity] || [];
+            if (adjacent.includes(beachRegion)) return { label: "Long Day Trip", color: "bg-yellow-100 text-yellow-800" };
+            
+            return { label: "Weekend Trip", color: "bg-red-100 text-red-800" };
+        }
+
+        // --- RENDER: Beach List ---
+        function renderBeachList() {
+            const filtered = getFilteredBeaches();
+            resultCountLabel.textContent = `${filtered.length} Beaches Found`;
+            beachListContainer.innerHTML = '';
+
+            if (filtered.length === 0) {
+                beachListContainer.innerHTML = `
+                    <div class="text-center py-10 text-stone-400">
+                        <p class="text-2xl mb-2">🏝️</p>
+                        <p>No beaches found matching criteria.</p>
+                        <button onclick="resetFilters()" class="mt-4 text-sky-600 underline text-sm">Reset Filters</button>
+                    </div>`;
+                return;
+            }
+
+            filtered.forEach(beach => {
+                const difficulty = getTripDifficulty(beach.region, state.homeBase);
+                
+                const card = document.createElement('div');
+                card.className = `p-4 border border-stone-100 rounded-lg hover:shadow-md transition-shadow cursor-pointer bg-white group ${state.selectedBeachId === beach.id ? 'ring-2 ring-sky-500 bg-sky-50' : ''}`;
+                card.onclick = () => selectBeach(beach);
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <h4 class="font-bold text-stone-800 group-hover:text-sky-700">${beach.name}</h4>
+                        <span class="text-xs px-2 py-0.5 rounded ${difficulty.color}">${difficulty.label}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs text-stone-500">
+                        <span>${beach.region}</span>
+                        <span class="px-2 py-0.5 bg-stone-100 rounded text-stone-600">${beach.type}</span>
+                    </div>
+                `;
+                beachListContainer.appendChild(card);
+            });
+        }
+
+        function resetFilters() {
+            typeSelect.value = "All";
+            regionSelect.value = "All";
+            state.selectedType = "All";
+            state.selectedRegionFilter = "All";
+            renderBeachList();
+        }
+
+        // --- LOGIC: Selection & Details ---
+        function selectBeach(beach) {
+            state.selectedBeachId = beach.id;
+            renderBeachList(); // Re-render to highlight selection
+
+            // Update Preview Card
+            tripPreviewCard.classList.remove('bg-gradient-to-br', 'from-sky-900', 'to-sky-800');
+            tripPreviewCard.classList.add('bg-gradient-to-br', 'from-sky-600', 'to-sky-900'); // Subtle change to indicate active state
+            
+            previewName.textContent = beach.name;
+            previewRegion.textContent = beach.region;
+            
+            previewTag.textContent = beach.type;
+            previewTag.classList.remove('hidden');
+
+            const difficulty = getTripDifficulty(beach.region, state.homeBase);
+
+            previewDetails.innerHTML = `
+                <div class="grid grid-cols-2 gap-4 mt-4">
+                    <div class="bg-white/10 p-3 rounded-lg">
+                        <p class="text-xs text-sky-200 uppercase tracking-wider">Feasibility</p>
+                        <p class="font-bold text-white">${difficulty.label}</p>
+                    </div>
+                    <div class="bg-white/10 p-3 rounded-lg">
+                        <p class="text-xs text-sky-200 uppercase tracking-wider">Features</p>
+                        <p class="font-bold text-white text-sm">${beach.features}</p>
+                    </div>
+                </div>
+                <p class="mt-4 text-sky-100 text-sm leading-relaxed">
+                    ${getGeneratedDescription(beach)}
+                </p>
+            `;
+
+            // Setup Action Area
+            previewDetails.classList.remove('opacity-50');
+            actionArea.classList.remove('hidden');
+            originDisplay.textContent = state.homeBase;
+            
+            // Generate Google Maps URL
+            // Format: https://www.google.com/maps/dir/?api=1&origin={Origin}&destination={Destination}&travelmode=driving
+            const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(state.homeBase + ", New Zealand")}&destination=${encodeURIComponent(beach.name + ", " + beach.region + ", New Zealand")}&travelmode=driving`;
+            mapsLink.href = mapsUrl;
+        }
+
+        function updatePreviewIfSelected() {
+            if (state.selectedBeachId) {
+                const beach = beaches.find(b => b.id === state.selectedBeachId);
+                if (beach) selectBeach(beach);
+            }
+        }
+
+        function getGeneratedDescription(beach) {
+            // Simple string generation based on type
+            if (beach.type === 'Surf') return `Pack your board! ${beach.name} is renowned for its swells. Be mindful of conditions and swim between the flags if patrols are active.`;
+            if (beach.type === 'Family') return `A perfect spot for a picnic. ${beach.name} offers safer swimming conditions and space for the kids to run around.`;
+            if (beach.type === 'Scenic') return `Don't forget your camera. ${beach.name} is visually stunning. Check the tides before you go to ensure you can explore fully.`;
+            if (beach.type === 'Swimming') return `Clear waters await at ${beach.name}. Great for snorkeling or just cooling off on a hot Kiwi summer day.`;
+            return `A fantastic destination in the ${beach.region} region.`;
+        }
+
+        // --- CHARTS (Chart.js) ---
+        function renderCharts() {
+            // Data Prep
+            const types = {};
+            const regions = {};
+
+            beaches.forEach(b => {
+                types[b.type] = (types[b.type] || 0) + 1;
+                regions[b.region] = (regions[b.region] || 0) + 1;
+            });
+
+            // Common Options
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }
+                }
+            };
+
+            // Chart 1: Types (Doughnut)
+            const ctxType = document.getElementById('typeChart').getContext('2d');
+            new Chart(ctxType, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(types),
+                    datasets: [{
+                        data: Object.values(types),
+                        backgroundColor: ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd'], // Sky palette
+                        borderWidth: 0
+                    }]
+                },
+                options: commonOptions
+            });
+
+            // Chart 2: Regions (Bar)
+            const ctxRegion = document.getElementById('regionChart').getContext('2d');
+            new Chart(ctxRegion, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(regions),
+                    datasets: [{
+                        label: 'Number of Beaches',
+                        data: Object.values(regions),
+                        backgroundColor: '#0c4a6e', // Darker blue
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                        x: { grid: { display: false } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        // Start App
+        init();
+
+    </script>
+</body>
+</html>
